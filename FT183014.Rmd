@@ -1,0 +1,263 @@
+Date: 20th February,2018
+
+Assignment: WSMA 
+
+Name: ANAND ROY
+
+FT NUMBER: FT183014
+
+Topic:Sentiment Analysis on '#bse'
+
+Frequency of most commonly used terms in the tweets
+---------------------------------------------------
+
+```{r}
+memory.limit(10000)
+#Check R version
+#R.version
+#Load Library
+library(SnowballC)
+library(tm)
+library(ggplot2)
+library(RColorBrewer)
+library(wordcloud)
+library(topicmodels)
+library(data.table)
+library(stringi)
+library(dplyr)
+library(syuzhet)
+library(plyr)
+library(grid)
+library(gridExtra)
+#Set Path
+setwd("C:\\Users\\Administrator\\Desktop")
+#Connect to twitter
+require(twitteR)
+require(RCurl)
+consumer_key <- 'qphOKHTyzytPVVcaex4BrZ4ZO'
+consumer_secret <- 'SitJMkcLnLUEvirvGtYPsuD5kgdWqFZ4EerLVJSThxc7CRkJrC'
+access_token <- '161544752-HHH6j4MKpk5SVRYQ5POHRLPFUfUbMHjhMhYAQOL7'
+access_secret <- 'Okd9rQoRWmetiGK0D338NMaFJnvuL96hLSG5qRfulvZOu'
+setup_twitter_oauth(consumer_key,consumer_secret,access_token,access_secret)
+data_bse <- searchTwitter("#bse",n=2500,since = "2012-01-01", lang="en")
+length.df_bse <- length(data_bse)
+length.df_bse
+data_bse.df<-ldply(data_bse,function(t) t$toDataFrame())
+
+#Formatting
+#Formatting date
+
+data_bse.df$created<-as.Date(data_bse.df$created)
+
+#Formatting text
+d_text = sapply(data_bse,function(x)x$getText())
+#Remove people name
+d_text1 <- gsub("@[^[:space:]]*", "", d_text)  
+#Remove HTML
+d_text2 <-  gsub("http[^[:space:]]*", "", d_text1)  
+#Remove Anything except English Language and Space
+d_text3 <- gsub("[^[:alpha:][:space:]]*", "", d_text2)   
+#Some more data cleaning
+d_text4 <- gsub("RT","",d_text3)
+d_text5 <- gsub("\n","",d_text4)
+
+
+#write to csv
+data=data.table("Tweet"= d_text5, "created" = data_bse.df$created) 
+write.csv(data,"bse_tweets.csv")
+
+#Load excel file
+tweets.df <- read.csv("bse_tweets.csv")
+names(tweets.df)
+str(tweets.df)
+tweets.df$Tweet <- as.character(tweets.df$Tweet)
+tweets.df$X = NULL
+#Data Cleanising
+#Build Corpus
+myCorpus<- Corpus(VectorSource(tweets.df$Tweet)) 
+#convert to LowerCase
+myCorpus <- tm_map(myCorpus,tolower)
+#remove stopwords
+myCorpus <- tm_map(myCorpus,removeWords, c(stopwords("english"),"kickoutcancer","stocks","stockmarket","bcanawareness","thakur","shri","going","ajay","spselva","amp","rose","cueswe","madampceo","cancerawareness","breast","breastcancer","see","fut","providing","just","feb","find","get","fut","bourses","bse","can","one","comes","mdampceo","take","face","dewan","cro","shasun","guys"))
+#remove numbers
+myCorpus <- tm_map(myCorpus,removeNumbers)
+#remove Punctuation
+myCorpus <- tm_map(myCorpus,removePunctuation)
+#remove whitespace
+myCorpus <- tm_map(myCorpus,stripWhitespace)
+myCorpusCopy<- myCorpus
+#find most frequent term
+dtm <- TermDocumentMatrix(myCorpus)
+(freq.terms <- findFreqTerms(dtm, lowfreq = 30))
+term.freq <- rowSums(as.matrix(dtm))
+term.freq <- subset(term.freq, term.freq > 30)
+df <- data.frame(term = names(term.freq), freq= term.freq)
+
+#Plotting frequency of most used term
+ggplot(df, aes(reorder(term, freq),freq)) + theme_bw() + geom_bar(stat = "identity")  + coord_flip() +labs(list(title="Term Frequency Chart", x="Terms", y="Term Counts")) 
+```
+
+From th term frequency Chart, we observe 'nse'/'nifty' having the highest frequency of occurance in tweets followed by stock, market,sensex and tips.
+BSE index is highly related with NSE, which is verified from the data.
+Also traders, trading in BSE frequently look for stock tips rather than indepth fundamental & technical analysis.
+
+WordCloud
+---------
+
+```{r}
+#plotting the word cloud
+dtm <- DocumentTermMatrix(myCorpus)
+m <- as.matrix(dtm)
+v <- sort(colSums(m),decreasing=TRUE)
+words <- names(v)
+d <- data.frame(word=words, freq=v)
+wordcloud(d$word,d$freq,min.freq=10, colors=rainbow(7))
+```
+
+Again, we see that Tips are amongst the most sought after keywords in the tweets suggesting that traders do rely on stock tips.
+Also NASDAQ(USA market) is closely observed by BSE traders.
+PNB being the latest scam is the only significant company name that came out.
+
+Association with specific keywords in the tweets
+------------------------------------------------
+
+```{r}
+#Find association with a specific keyword in the tweets
+
+list1<- findAssocs(dtm, "nifty", 0.21)
+corrdf1 <- t(data.frame(t(sapply(list1,c))))
+#corrdf1
+
+list2<- findAssocs(dtm,"nse",0.2)
+corrdf2 <- t(data.frame(t(sapply(list2,c))))
+#corrdf2
+
+list3<- findAssocs(dtm,"market",0.23)
+corrdf3 <- t(data.frame(t(sapply(list3,c))))
+#corrdf3
+
+#list4<- findAssocs(dtm,"inr",0.33)
+#corrdf4 <- t(data.frame(t(sapply(list4,c))))
+#corrdf4
+
+#list5<- findAssocs(dtm,"bank",0.2)
+#corrdf5 <- t(data.frame(t(sapply(list5,c))))
+#corrdf5
+
+list6<- findAssocs(dtm,"nasdaq",0.24)
+corrdf6 <- t(data.frame(t(sapply(list6,c))))
+#corrdf6
+
+list7<- findAssocs(dtm,"tips",0.2)
+corrdf7 <- t(data.frame(t(sapply(list7,c))))
+#corrdf7
+
+list8<- findAssocs(dtm,"pnb",0.26)
+corrdf8 <- t(data.frame(t(sapply(list8,c))))
+#corrdf8
+
+#Barplot
+barplot(t(as.matrix(corrdf1)),beside=TRUE,xlab = "Words",ylab = "Corr",col = "blue",main = "NIFTY",border = "black")
+
+```
+
+NIFTY futures market is the most correlated term with NIFTY suggetsing strong F&O(Futures & OPtions) trading discussions.
+
+```{r}
+barplot(t(as.matrix(corrdf3)),beside=TRUE,xlab = "Words",ylab = "Corr",col = "yellow",main = "MARKET",border = "black")
+
+```
+
+BSE is the biggest Indian stock market where apart from BSE NIFTY & the debt market are also heavily discussed. 
+
+```{r}
+barplot(t(as.matrix(corrdf8)),beside=TRUE,xlab = "Words",ylab = "Corr",col = "yellow",main = "PNB",border = "black")
+```
+
+Because of the recent scam,fraud is the most correlated term with PNB. People have tweeted about the conferences and blamed the management.
+
+```{r}
+barplot(t(as.matrix(corrdf6)),beside=TRUE,xlab = "Words",ylab = "Corr",col = "yellow",main = "NASDAQ",border = "black")
+```
+
+Just like BSE and NSE, NASDAQ & DOW JONES are the most correletad terms suggetsing that markets of same country are mostly twieeted/discussed together. Apparently, USDJPY(US $ and Japanese Yen) is discussed alongwith NASDAQ.
+
+```{r}
+barplot(t(as.matrix(corrdf7)),beside=TRUE,xlab = "Words",ylab = "Corr",col = "yellow",main = "TIPS",border = "black")
+```
+
+Since most of the BSE traders were discussing about tips, we explored about the terms that are highly correlated with tips. We see that FOREX and Derivative market tips are mostly tweeted.Also people are looking for free tips.
+
+Topic Modelling
+---------------
+
+```{r}
+#Topic Modelling to identify latent/hidden topics using LDA technique
+tdm <- as.DocumentTermMatrix(dtm)
+rowTotals <- apply(tdm , 1, sum)
+NullDocs <- tdm[rowTotals==0, ]
+tdm   <- tdm[rowTotals> 0, ]
+
+if (length(NullDocs$dimnames$Docs) > 0) {
+  tweets.df <- tweets.df[-as.numeric(NullDocs$dimnames$Docs),]
+}
+
+lda <- LDA(tdm, k = 5) # find 5 topic
+term <- terms(lda, 7) # first 7 terms of every topic
+(term <- apply(term, MARGIN = 2, paste, collapse = ", "))
+topics<- topics(lda)
+topics<- data.frame(date=(tweets.df$created), topic = topics)
+qplot (date, ..count.., data=topics, geom ="density", fill= term[topic], position="stack")
+```
+
+In the 10 days span NSE stock tips were consistently being discussed. The PNB scam came into light on 14th of February and during 14th and 15th PNB was a hot topic of discussion. 
+On weekends traders/tweeters were contemplating om their next possible moves once the market opens. So keywords like 'will' were heavily used.
+
+Sentiment Analysis
+------------------
+
+```{r}
+#Sentiment Analysis: understanding emotional valence in tweets using syuzhet
+mysentiment<-get_nrc_sentiment((tweets.df$Tweet))
+mysentiment.positive =sum(mysentiment$positive)
+mysentiment.anger =sum(mysentiment$anger)
+mysentiment.anticipation =sum(mysentiment$anticipation)
+mysentiment.disgust =sum(mysentiment$disgust)
+mysentiment.fear =sum(mysentiment$fear)
+mysentiment.joy =sum(mysentiment$joy)
+mysentiment.sadness =sum(mysentiment$sadness)
+mysentiment.surprise =sum(mysentiment$surprise)
+mysentiment.trust =sum(mysentiment$trust)
+mysentiment.negative =sum(mysentiment$negative)
+yAxis <- c(mysentiment.positive,
+           + mysentiment.anger,
+           + mysentiment.anticipation,
+           + mysentiment.disgust,
+           + mysentiment.fear,
+           + mysentiment.joy,
+           + mysentiment.sadness,
+           + mysentiment.surprise,
+           + mysentiment.trust,
+           + mysentiment.negative)
+xAxis <- c("Positive","Anger","Anticipation","Disgust","Fear","Joy","Sadness",
+           "Surprise","Trust","Negative")
+colors <- c("green","red","blue","orange","red","green","orange","blue","green","red")
+yRange <- range(0,yAxis)
+barplot(yAxis, names.arg = xAxis, 
+        xlab = "Emotional valence", ylab = "Score", main = "Twitter sentiment", 
+        sub = "BSE", col = colors, border = "black", xpd = F, ylim = yRange,
+        axisnames = T, cex.axis = 0.8, cex.sub = 0.8, col.sub = "blue")
+```
+
+The BSE market is heavily driven either by positive or negative sentiments. Anticipation, joy and suprises are the next most emotions prevailing. 
+
+```{r}
+mysentimentvalues <- data.frame(get_sentiment((tweets.df$Tweet)))
+colnames(mysentimentvalues)<-"polarity"
+mysentimentvalues$date <- tweets.df$created
+result <- aggregate(polarity ~ date, data = mysentimentvalues, sum)
+plot(result$date,result$polarity,order(result$date),type='l')
+result1 <- aggregate(polarity ~ date, data = mysentimentvalues, mean)
+plot(result1, type = "l")
+```
+
